@@ -143,6 +143,13 @@ class Game {
         // Enviar nuestra posición inicial al rival inmediatamente
         this.sendPositionUpdate();
 
+        // Heartbeat de red para sincronizar posición de forma segura y constante (10 veces por segundo es óptimo)
+        this.netHeartbeat = setInterval(() => {
+            if (this.gameActive) {
+                this.sendPositionUpdate();
+            }
+        }, 100);
+
         // Bucle de renderizado
         this.animate();
     }
@@ -664,6 +671,7 @@ class Game {
 
     endGame(reason) {
         this.gameActive = false;
+        if (this.netHeartbeat) clearInterval(this.netHeartbeat);
         this.removeFlashlight();
         document.exitPointerLock();
 
