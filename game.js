@@ -360,6 +360,7 @@ class Game {
             });
             this.otherPlayerMesh = new THREE.Mesh(playerGeo, playerMat);
             this.scene.add(this.otherPlayerMesh);
+        } else {
             // Yo soy el invisible. El otro es el buscador.
             // El buscador es de un color rojo brillante/neón visible para poder vigilarlo
             playerMat = new THREE.MeshStandardMaterial({ 
