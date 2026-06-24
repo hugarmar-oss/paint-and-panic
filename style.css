@@ -1,0 +1,393 @@
+/* Configuración General y Variables */
+:root {
+    --bg-color: #0d0e12;
+    --panel-bg: rgba(20, 22, 30, 0.7);
+    --border-color: rgba(255, 255, 255, 0.08);
+    --text-color: #f3f4f6;
+    --text-muted: #9ca3af;
+    
+    /* Colores Neón Temáticos */
+    --neon-uv: #9d4edd; /* Violeta Ultravioleta */
+    --neon-glow: #39ff14; /* Verde Fluorescente (Invisibles) */
+    --neon-paint: #ff007f; /* Rosa Fucsia (Pintura de Paintball) */
+    
+    --font-main: 'Outfit', sans-serif;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    user-select: none;
+}
+
+body, html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    font-family: var(--font-main);
+    color: var(--text-color);
+}
+
+/* Pantallas superpuestas (Menús) */
+.overlay-screen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 10;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: radial-gradient(circle at center, rgba(16, 18, 27, 0.85) 0%, rgba(8, 9, 13, 0.98) 100%);
+    backdrop-filter: blur(8px);
+    transition: opacity 0.3s ease;
+}
+
+.menu-box {
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    padding: 3rem;
+    border-radius: 24px;
+    box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 40px rgba(157, 78, 221, 0.1);
+    text-align: center;
+    max-width: 450px;
+    width: 90%;
+}
+
+.logo-text {
+    font-size: 3rem;
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 0 20px rgba(157, 78, 221, 0.4);
+}
+
+.logo-text span {
+    color: var(--neon-uv);
+}
+
+.tagline {
+    font-size: 1rem;
+    color: var(--text-muted);
+    margin-bottom: 2.5rem;
+}
+
+/* Botones y Entradas */
+.btn {
+    display: block;
+    width: 100%;
+    padding: 1rem;
+    font-family: var(--font-main);
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-bottom: 1rem;
+}
+
+.btn-primary {
+    background-color: var(--neon-uv);
+    color: white;
+    box-shadow: 0 4px 15px rgba(157, 78, 221, 0.4);
+}
+
+.btn-primary:hover {
+    background-color: #b5179e;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(157, 78, 221, 0.6);
+}
+
+.btn-secondary {
+    background-color: transparent;
+    border: 1px solid var(--neon-glow);
+    color: var(--neon-glow);
+    box-shadow: 0 4px 15px rgba(57, 255, 20, 0.1);
+}
+
+.btn-secondary:hover {
+    background-color: var(--neon-glow);
+    color: #000;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(57, 255, 20, 0.3);
+}
+
+.btn-danger {
+    background-color: #ef4444;
+    color: white;
+}
+
+.btn-danger:hover {
+    background-color: #dc2626;
+    transform: translateY(-2px);
+}
+
+.divider {
+    display: flex;
+    align-items: center;
+    margin: 1.5rem 0;
+    color: var(--text-muted);
+}
+
+.divider::before, .divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background-color: var(--border-color);
+}
+
+.divider span {
+    padding: 0 1rem;
+    font-size: 0.9rem;
+}
+
+.join-box {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+
+input[type="text"] {
+    width: 100%;
+    padding: 1rem;
+    background-color: rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    color: white;
+    font-family: var(--font-main);
+    font-size: 1.1rem;
+    text-align: center;
+    transition: border-color 0.2s;
+}
+
+input[type="text"]:focus {
+    outline: none;
+    border-color: var(--neon-uv);
+}
+
+/* Estado de la sala de espera */
+.code-display-container {
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    padding: 1rem;
+    margin: 1.5rem 0;
+    border: 1px dashed var(--neon-uv);
+}
+
+.code-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 0.5rem;
+}
+
+.code-value-box {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1rem;
+}
+
+#display-lobby-id {
+    font-size: 1.6rem;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: white;
+}
+
+#btn-copy-code {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 1.2rem;
+    padding: 0.2rem;
+    transition: transform 0.1s;
+}
+
+#btn-copy-code:active {
+    transform: scale(0.9);
+}
+
+.status-title {
+    font-size: 1.1rem;
+    color: var(--text-color);
+}
+
+/* Estilos de Juego y HUD */
+#hud-container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none; /* Permite hacer clic a través de los paneles */
+    z-index: 5;
+}
+
+#crosshair {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 8px;
+    height: 8px;
+    background-color: rgba(255, 255, 255, 0.6);
+    border-radius: 50%;
+    transform: translate(-50%, -50%);
+    border: 1px solid rgba(0, 0, 0, 0.5);
+}
+
+.hud-panel {
+    position: absolute;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    padding: 1rem 1.5rem;
+    border-radius: 16px;
+    pointer-events: auto; /* Activa la interacción en paneles si se requiere */
+    backdrop-filter: blur(6px);
+}
+
+#role-indicator {
+    top: 20px;
+    left: 20px;
+    display: flex;
+    flex-direction: column;
+}
+
+.hud-label {
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 0.2rem;
+}
+
+.hud-value {
+    font-size: 1.4rem;
+    font-weight: 800;
+}
+
+.role-seeker {
+    color: var(--neon-uv);
+    text-shadow: 0 0 10px rgba(157, 78, 221, 0.4);
+}
+
+.role-invisible {
+    color: var(--neon-glow);
+    text-shadow: 0 0 10px rgba(57, 255, 20, 0.4);
+}
+
+#seeker-panel {
+    bottom: 20px;
+    right: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    min-width: 250px;
+}
+
+#invisible-panel {
+    bottom: 20px;
+    right: 20px;
+    min-width: 250px;
+}
+
+.hud-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+/* Barra de batería */
+.bar-container {
+    width: 100%;
+    height: 12px;
+    background-color: rgba(0, 0, 0, 0.4);
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.bar-fill {
+    height: 100%;
+    width: 100%;
+    background-color: var(--neon-uv);
+    box-shadow: 0 0 8px var(--neon-uv);
+    transition: width 0.1s linear;
+}
+
+/* Caja de munición */
+.ammo-box {
+    border-radius: 8px;
+    padding: 0.6rem;
+    text-align: center;
+    font-weight: 800;
+    font-size: 1rem;
+    letter-spacing: 1px;
+    transition: all 0.2s;
+}
+
+.ammo-box.ready {
+    background-color: rgba(57, 255, 20, 0.1);
+    border: 1px solid var(--neon-glow);
+    color: var(--neon-glow);
+}
+
+.ammo-box.reloading {
+    background-color: rgba(239, 68, 68, 0.1);
+    border: 1px solid #ef4444;
+    color: #ef4444;
+    animation: pulse 1s infinite alternate;
+}
+
+@keyframes pulse {
+    from { opacity: 0.6; }
+    to { opacity: 1; }
+}
+
+.hud-hint {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+#game-instructions {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.6);
+    padding: 0.6rem 1.2rem;
+    border-radius: 30px;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+}
+
+/* Estilo Pantalla de Victoria/Fin */
+.victory-text {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: var(--neon-glow);
+    margin-bottom: 1rem;
+    text-shadow: 0 0 15px rgba(57, 255, 20, 0.3);
+}
+
+.defeat-text {
+    font-size: 2.5rem;
+    font-weight: 800;
+    color: #ef4444;
+    margin-bottom: 1rem;
+    text-shadow: 0 0 15px rgba(239, 68, 68, 0.3);
+}
+
+.gameover-detail {
+    color: var(--text-muted);
+    margin-bottom: 2rem;
+}
+
+/* Helpers */
+.hidden {
+    display: none !important;
+}

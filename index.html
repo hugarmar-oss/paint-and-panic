@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paint and Panic</title>
+    <link rel="stylesheet" href="style.css">
+    <!-- Google Fonts para una tipografía premium y limpia -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&display=swap" rel="stylesheet">
+    <!-- Three.js y PeerJS desde CDNs fiables -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/peerjs@1.4.7/dist/peerjs.min.js"></script>
+</head>
+<body>
+    <!-- Capa de Interfaz del Menú Principal -->
+    <div id="lobby-container" class="overlay-screen">
+        <div class="menu-box">
+            <h1 class="logo-text">PAINT & <span>PANIC</span></h1>
+            <p class="tagline">Sigilo e invisibilidad a plena luz</p>
+            
+            <div id="connection-menu">
+                <button id="btn-create-lobby" class="btn btn-primary">Crear Sala (Buscador)</button>
+                <div class="divider"><span>o</span></div>
+                <div class="join-box">
+                    <input type="text" id="input-lobby-id" placeholder="Código de la sala..." autocomplete="off">
+                    <button id="btn-join-lobby" class="btn btn-secondary">Unirse (Invisible)</button>
+                </div>
+            </div>
+
+            <div id="lobby-status" class="hidden">
+                <p class="status-title">Esperando contrincante...</p>
+                <div class="code-display-container">
+                    <span class="code-label">Comparte este código:</span>
+                    <div class="code-value-box">
+                        <span id="display-lobby-id">------</span>
+                        <button id="btn-copy-code" title="Copiar código">📋</button>
+                    </div>
+                </div>
+                <button id="btn-cancel-lobby" class="btn btn-danger">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- HUD del Juego en Pantalla -->
+    <div id="hud-container" class="hidden">
+        <!-- Retícula Central -->
+        <div id="crosshair"></div>
+
+        <!-- Indicador de Rol en Pantalla -->
+        <div id="role-indicator" class="hud-panel">
+            <span class="hud-label">ROL</span>
+            <span id="role-value" class="hud-value">...</span>
+        </div>
+
+        <!-- Panel del Buscador (Linterna y Munición) -->
+        <div id="seeker-panel" class="hud-panel hidden">
+            <div class="hud-stat">
+                <span class="hud-label">LINTERNA UV [F]</span>
+                <div class="bar-container">
+                    <div id="battery-bar" class="bar-fill"></div>
+                </div>
+            </div>
+            <div class="hud-stat">
+                <span class="hud-label">MUNICIÓN PAINTBALL</span>
+                <div id="ammo-indicator" class="ammo-box ready">
+                    <span id="ammo-status">LISTO</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de los Invisibles -->
+        <div id="invisible-panel" class="hud-panel hidden">
+            <div class="hud-stat">
+                <span class="hud-label">SILBAR [E]</span>
+                <p class="hud-hint">Provoca al buscador delatando tu posición</p>
+            </div>
+        </div>
+
+        <!-- Instrucciones en pantalla -->
+        <div id="game-instructions">
+            <p>Moverse: [WASD] | Mirar: [Ratón] | Capturar ratón: [Clic en pantalla]</p>
+        </div>
+    </div>
+
+    <!-- Pantalla de Fin de Juego -->
+    <div id="gameover-screen" class="overlay-screen hidden">
+        <div class="menu-box">
+            <h2 id="gameover-title" class="victory-text">¡VICTORIA!</h2>
+            <p id="gameover-desc" class="gameover-detail">El Buscador te ha encontrado.</p>
+            <button id="btn-restart" class="btn btn-primary">Volver al Menú</button>
+        </div>
+    </div>
+
+    <!-- Scripts de lógica del juego -->
+    <script src="network.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
