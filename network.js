@@ -38,9 +38,16 @@ class NetworkManager {
         this.lobbyStatus.classList.remove('hidden');
         this.displayLobbyId.textContent = "Generando...";
 
-        // Inicializamos PeerJS sin ID específico para que asigne uno aleatorio
+        // Configuración con servidores STUN públicos de Google para garantizar conexión P2P bidireccional fiable
         this.peer = new Peer(null, {
-            debug: 1
+            debug: 1,
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' }
+                ]
+            }
         });
 
         this.peer.on('open', (id) => {
@@ -73,7 +80,14 @@ class NetworkManager {
         this.btnJoin.textContent = "Conectando...";
 
         this.peer = new Peer(null, {
-            debug: 1
+            debug: 1,
+            config: {
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' }
+                ]
+            }
         });
 
         this.peer.on('open', () => {
