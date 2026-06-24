@@ -594,6 +594,7 @@ class Game {
         if (!this.gameActive) return;
 
         if (data.type === 'move') {
+            console.log("Recibido movimiento contrincante:", data.position);
             // Sincronizar posición y rotación del contrincante
             this.otherPlayerMesh.position.fromArray(data.position);
             // Sincronizamos la rotación Y (el giro hacia los lados) para el modelo
@@ -815,19 +816,14 @@ class Game {
             camera.position.x = Math.max(-48, Math.min(48, camera.position.x));
             camera.position.z = Math.max(-48, Math.min(48, camera.position.z));
 
-            // Sincronizar por red siempre para máxima fluidez y evitar pérdidas
-            this.sendPositionUpdate();
-
-            // Si nos hemos movido, crear huellas si somos invisibles
-            if (prevPos.distanceTo(camera.position) > 0.01) {
+            // Si nos hemos movido, registrar y enviar actualización por red
+            if (prevPos.distanceTo(camera.position) > 0.005) {
+                this.sendPositionUpdate();
                 if (this.role === 'invisible') {
                     this.spawnFootstep();
                 }
             }
         }
-
-        // Sincronizar posición por red constantemente si el juego está activo para evitar desincronizaciones
-        this.sendPositionUpdate();
 
         // Actualizaciones de mecánicas
         this.updateFlashlightPosition();
