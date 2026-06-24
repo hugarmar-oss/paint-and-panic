@@ -140,6 +140,9 @@ class Game {
         // Enlazar eventos de red
         window.networkManager.onDataCallback = (data) => this.handleNetworkData(data);
 
+        // Enviar nuestra posición inicial al rival inmediatamente
+        this.sendPositionUpdate();
+
         // Bucle de renderizado
         this.animate();
     }
@@ -371,7 +374,7 @@ class Game {
     }
 
     toggleFlashlight() {
-        if (this.battery <= 0) return;
+        if (!this.flashlightActive && this.battery <= 0) return;
         this.flashlightActive = !this.flashlightActive;
         this.playSynthSound('click');
 
@@ -581,7 +584,10 @@ class Game {
         if (data.type === 'move') {
             // Sincronizar posición y rotación del contrincante
             this.otherPlayerMesh.position.fromArray(data.position);
-            this.otherPlayerMesh.rotation.fromArray(data.rotation);
+            // Sincronizamos la rotación Y (el giro hacia los lados) para el modelo
+            if (data.rotation) {
+                this.otherPlayerMesh.rotation.y = data.rotation[1]; 
+            }
         } else if (data.type === 'flashlight') {
             // Si el buscador enciende/apaga su linterna, el cliente invisible lo sincroniza en su pantalla
             this.otherPlayerFlashlightActive = data.active;
