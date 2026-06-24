@@ -351,9 +351,9 @@ class Game {
 
         if (this.role === 'seeker') {
             // Yo soy el buscador. El otro es el invisible.
-            // Para mí, el otro es 100% invisible por defecto
+            // Para mí, el otro es invisible por defecto, pero brillará en rojo neón al recibir luz UV
             playerMat = new THREE.MeshBasicMaterial({ 
-                color: 0x39ff14, 
+                color: 0xff3333, 
                 transparent: true, 
                 opacity: 0.0,
                 depthWrite: false
@@ -362,12 +362,12 @@ class Game {
             this.scene.add(this.otherPlayerMesh);
         } else {
             // Yo soy el invisible. El otro es el buscador.
-            // El buscador es de un color rojo brillante/neón visible para poder vigilarlo
+            // El buscador es visible todo el tiempo en color rojo brillante para poder esquivarlo
             playerMat = new THREE.MeshStandardMaterial({ 
                 color: 0xff3333, 
                 roughness: 0.2, 
                 metalness: 0.8,
-                emissive: 0x990000
+                emissive: 0xaa0000
             });
             this.otherPlayerMesh = new THREE.Mesh(playerGeo, playerMat);
             this.scene.add(this.otherPlayerMesh);
