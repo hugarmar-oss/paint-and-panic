@@ -804,14 +804,19 @@ class Game {
             camera.position.x = Math.max(-48, Math.min(48, camera.position.x));
             camera.position.z = Math.max(-48, Math.min(48, camera.position.z));
 
-            // Si nos hemos movido, sincronizar por red y crear huellas si somos invisibles
+            // Sincronizar por red siempre para máxima fluidez y evitar pérdidas
+            this.sendPositionUpdate();
+
+            // Si nos hemos movido, crear huellas si somos invisibles
             if (prevPos.distanceTo(camera.position) > 0.01) {
-                this.sendPositionUpdate();
                 if (this.role === 'invisible') {
                     this.spawnFootstep();
                 }
             }
         }
+
+        // Sincronizar posición por red constantemente si el juego está activo para evitar desincronizaciones
+        this.sendPositionUpdate();
 
         // Actualizaciones de mecánicas
         this.updateFlashlightPosition();
