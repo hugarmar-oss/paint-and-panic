@@ -357,23 +357,16 @@ class Game {
             });
             this.otherPlayerMesh = new THREE.Mesh(playerGeo, playerMat);
             this.scene.add(this.otherPlayerMesh);
-        } else {
             // Yo soy el invisible. El otro es el buscador.
-            // El buscador es de un color cobalto/gris oscuro estilizado y visible
-            playerMat = new THREE.MeshStandardMaterial({ color: 0x1d3557, roughness: 0.5 });
+            // El buscador es de un color rojo brillante/neón visible para poder vigilarlo
+            playerMat = new THREE.MeshStandardMaterial({ 
+                color: 0xff3333, 
+                roughness: 0.2, 
+                metalness: 0.8,
+                emissive: 0x990000
+            });
             this.otherPlayerMesh = new THREE.Mesh(playerGeo, playerMat);
             this.scene.add(this.otherPlayerMesh);
-
-            // Representación de mi propio cuerpo (solo para mí, una silueta verde neón semi-transparente para saber dónde estoy)
-            const myGeo = new THREE.CylinderGeometry(0.8, 0.8, 3.2, 16);
-            const myMat = new THREE.MeshBasicMaterial({
-                color: 0x39ff14,
-                transparent: true,
-                opacity: 0.25,
-                wireframe: true
-            });
-            this.myAvatar = new THREE.Mesh(myGeo, myMat);
-            this.scene.add(this.myAvatar);
         }
     }
 
@@ -809,8 +802,6 @@ class Game {
                 this.sendPositionUpdate();
                 if (this.role === 'invisible') {
                     this.spawnFootstep();
-                    // Sincronizar avatar propio
-                    if (this.myAvatar) this.myAvatar.position.copy(camera.position);
                 }
             }
         }
