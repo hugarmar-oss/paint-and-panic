@@ -369,7 +369,18 @@ class Game {
                 metalness: 0.8,
                 emissive: 0xaa0000
             });
-            this.otherPlayerMesh = new THREE.Mesh(playerGeo, playerMat);
+            this.otherPlayerMesh = new THREE.Group();
+
+            const bodyMesh = new THREE.Mesh(playerGeo, playerMat);
+            this.otherPlayerMesh.add(bodyMesh);
+
+            // Pequeño visor/indicador en la frente del buscador que apunta hacia el frente (Eje Z negativo)
+            const visorGeo = new THREE.BoxGeometry(0.6, 0.4, 0.8);
+            const visorMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 }); // Amarillo/Naranja brillante
+            const visorMesh = new THREE.Mesh(visorGeo, visorMat);
+            visorMesh.position.set(0, 1.0, -0.6); // Situado en la frente apuntando hacia adelante
+            this.otherPlayerMesh.add(visorMesh);
+
             this.scene.add(this.otherPlayerMesh);
         }
     }

@@ -97,21 +97,24 @@ class NetworkManager {
             console.log('Conexión P2P establecida exitosamente.');
             this.lobbyContainer.classList.add('hidden');
             
-            // Enviar confirmación de rol al conectarse
             if (this.isHost) {
                 // El host le dice al cliente que su rol es invisible
                 this.conn.send({ type: 'init-role', role: 'invisible' });
-            }
-
-            if (this.onConnectCallback) {
-                this.onConnectCallback(this.role);
+                
+                // El host inicia el juego inmediatamente como seeker
+                if (this.onConnectCallback) {
+                    this.onConnectCallback(this.role);
+                }
             }
         });
 
         this.conn.on('data', (data) => {
             if (data.type === 'init-role') {
                 this.role = data.role;
-                if (this.onConnectCallback) this.onConnectCallback(this.role);
+                // El cliente inicia el juego solo cuando recibe la inicialización de rol del host
+                if (this.onConnectCallback) {
+                    this.onConnectCallback(this.role);
+                }
                 return;
             }
             if (this.onDataCallback) {
