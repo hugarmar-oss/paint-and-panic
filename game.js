@@ -369,6 +369,8 @@ class Game {
             box.position.set(...pos);
             placeObstacleMesh(box);
         });
+        console.log("Obstacles count:", this.obstacles.length);
+        console.log("Obstacle boxes:", this.obstacleBoxes);
     }
 
     spawnPlayers() {
