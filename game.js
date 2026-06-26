@@ -601,10 +601,15 @@ class Game {
     }
 
     sendPositionUpdate() {
+        const direction = new THREE.Vector3();
+        this.camera.getWorldDirection(direction);
+        // Ángulo horizontal exacto y estable usando la dirección del vector
+        const yRot = Math.atan2(-direction.x, -direction.z);
+
         window.networkManager.send({
             type: 'move',
             position: this.camera.position.toArray(),
-            yRotation: this.camera.rotation.y
+            yRotation: yRot
         });
     }
 
