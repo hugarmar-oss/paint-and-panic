@@ -233,14 +233,17 @@ class Game {
         // Teclado
         window.addEventListener('keydown', (e) => {
             if (!this.controls.enabled) return;
-            if (e.repeat) return; // Evita el bug de mantener pulsada la tecla (linterna infinita)
+            if (e.repeat) return; // Evita repeticiones automáticas del teclado
             switch (e.code) {
                 case 'KeyW': this.keys.w = true; break;
                 case 'KeyA': this.keys.a = true; break;
                 case 'KeyS': this.keys.s = true; break;
                 case 'KeyD': this.keys.d = true; break;
                 case 'KeyF':
-                    if (this.role === 'seeker') this.toggleFlashlight();
+                    // Encender al pulsar (solo si eres buscador y no está encendida ya)
+                    if (this.role === 'seeker' && !this.flashlightActive) {
+                        this.toggleFlashlight();
+                    }
                     break;
                 case 'KeyE':
                     if (this.role === 'invisible') this.whistle();
@@ -254,6 +257,12 @@ class Game {
                 case 'KeyA': this.keys.a = false; break;
                 case 'KeyS': this.keys.s = false; break;
                 case 'KeyD': this.keys.d = false; break;
+                case 'KeyF':
+                    // Apagar al soltar la tecla
+                    if (this.role === 'seeker' && this.flashlightActive) {
+                        this.toggleFlashlight();
+                    }
+                    break;
             }
         });
 
