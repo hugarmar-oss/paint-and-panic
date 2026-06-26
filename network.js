@@ -324,6 +324,9 @@ class NetworkManager {
     }
 
     send(data) {
+        if (!data.playerId) {
+            data.playerId = this.myId;
+        }
         if (this.isHost) {
             // El host difunde a todos los clientes
             this.broadcast(data);
