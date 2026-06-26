@@ -21,6 +21,7 @@ class Game {
 
         // Mecánicas: Buscador
         this.flashlightActive = false;
+        this.flashlightLocked = false; // Bloqueo temporal al agotarse la batería
         this.battery = 100.0;
         this.batteryDepletionRate = 20.0; // por segundo encendida
         this.batteryRecoveryRate = 12.0;  // por segundo apagada
@@ -394,7 +395,7 @@ class Game {
     }
 
     toggleFlashlight() {
-        if (!this.flashlightActive && this.battery <= 0) return;
+        if (!this.flashlightActive && (this.battery <= 0 || this.flashlightLocked)) return;
         this.flashlightActive = !this.flashlightActive;
         this.playSynthSound('click');
 
@@ -749,10 +750,17 @@ class Game {
         if (this.flashlightActive) {
             this.battery = Math.max(0, this.battery - this.batteryDepletionRate * delta);
             if (this.battery === 0) {
+                this.flashlightLocked = true; // Bloquear linterna
                 this.toggleFlashlight(); // Se apaga sola al agotarse
+                this.batteryBar.style.backgroundColor = '#ef4444'; // Cambiar barra a rojo (indicando bloqueo)
             }
         } else {
             this.battery = Math.min(100, this.battery + this.batteryRecoveryRate * delta);
+            // Si estaba bloqueada y ya cargó por encima del 25%, se desbloquea
+            if (this.flashlightLocked && this.battery >= 25.0) {
+                this.flashlightLocked = false;
+                this.batteryBar.style.backgroundColor = ''; // Volver al color violeta neón normal
+            }
         }
 
         // Actualizar barra de UI
