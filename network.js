@@ -1,12 +1,16 @@
-// Administrador de Red P2P usando PeerJS para Paint and Panic
+// Administrador de Red P2P en Estrella usando PeerJS para Paint and Panic
 class NetworkManager {
     constructor() {
         this.peer = null;
-        this.conn = null;
-        this.role = null; // 'seeker' o 'invisible'
+        this.conn = null; // Conexión al host (si somos cliente)
+        this.connections = {}; // Para el host: dict de peerId -> Connection
+        this.players = {}; // dict de peerId -> { playerId, color, isHost }
+        this.myId = null;
+        this.role = null;
         this.isHost = false;
+        this.gameStarted = false;
         
-        // Callbacks registrados por el bucle de juego
+        // Callbacks registrados por el juego
         this.onConnectCallback = null;
         this.onDataCallback = null;
         this.onDisconnectCallback = null;
@@ -24,21 +28,82 @@ class NetworkManager {
         this.displayLobbyId = document.getElementById('display-lobby-id');
         this.btnCopy = document.getElementById('btn-copy-code');
         this.btnCancel = document.getElementById('btn-cancel-lobby');
+        
+        // Nuevos elementos para multijugador
+        this.btnStartGame = document.getElementById('btn-start-game');
+        this.playersListDiv = document.getElementById('lobby-players-list');
 
         this.btnCreate.addEventListener('click', () => this.createLobby());
         this.btnJoin.addEventListener('click', () => this.joinLobby());
         this.btnCancel.addEventListener('click', () => this.cancelLobby());
         this.btnCopy.addEventListener('click', () => this.copyLobbyId());
+        this.btnStartGame.addEventListener('click', () => this.startGame());
+    }
+
+    getAvailableColor() {
+        const PRESET_COLORS = ['#39ff14', '#00f0ff', '#ff00ff', '#ffff00']; // Verde, Cian, Magenta, Amarillo
+        const usedColors = Object.values(this.players).map(p => p.color);
+        for (const color of PRESET_COLORS) {
+            if (!usedColors.includes(color)) {
+                return color;
+            }
+        }
+        return PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
+    }
+
+    updateLobbyUI() {
+        if (!this.playersListDiv) return;
+        this.playersListDiv.innerHTML = '';
+
+        const playerIds = Object.keys(this.players);
+        playerIds.forEach(id => {
+            const player = this.players[id];
+            
+            const row = document.createElement('div');
+            row.className = 'player-row';
+
+            const dot = document.createElement('div');
+            dot.className = 'player-dot';
+            dot.style.backgroundColor = player.color;
+            dot.style.boxShadow = `0 0 10px ${player.color}`;
+
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'player-name';
+            nameSpan.textContent = id === this.myId ? `Tú (${id.substring(0, 5)})` : `Jugador (${id.substring(0, 5)})`;
+
+            const tagSpan = document.createElement('span');
+            tagSpan.className = 'player-tag';
+            tagSpan.textContent = player.isHost ? 'BUSCADOR' : 'INVISIBLE';
+            if (player.isHost) {
+                tagSpan.style.color = '#ff3333';
+                tagSpan.style.borderColor = 'rgba(255, 51, 51, 0.4)';
+            } else {
+                tagSpan.style.color = player.color;
+                tagSpan.style.borderColor = player.color;
+            }
+
+            row.appendChild(dot);
+            row.appendChild(nameSpan);
+            row.appendChild(tagSpan);
+            this.playersListDiv.appendChild(row);
+        });
+
+        // Habilitar/deshabilitar botón de inicio para el host
+        if (this.isHost && this.btnStartGame) {
+            const invisibleCount = playerIds.length - 1; // Excluir host
+            this.btnStartGame.textContent = `Iniciar Partida (${invisibleCount}/4 invisibles)`;
+            this.btnStartGame.disabled = invisibleCount === 0;
+        }
     }
 
     createLobby() {
         this.isHost = true;
-        this.role = 'seeker'; // El host por defecto es el Buscador
+        this.role = 'seeker'; // El host es el Buscador
         this.connectionMenu.classList.add('hidden');
         this.lobbyStatus.classList.remove('hidden');
+        this.btnStartGame.classList.remove('hidden');
         this.displayLobbyId.textContent = "Generando...";
 
-        // Configuración con servidores STUN públicos de Google para garantizar conexión P2P bidireccional fiable
         this.peer = new Peer(null, {
             debug: 1,
             config: {
@@ -52,12 +117,19 @@ class NetworkManager {
 
         this.peer.on('open', (id) => {
             this.displayLobbyId.textContent = id;
+            this.myId = id;
+            
+            // Registrarnos a nosotros mismos
+            this.players[id] = {
+                playerId: id,
+                color: '#ff3333', // Rojo Buscador
+                isHost: true
+            };
+            this.updateLobbyUI();
         });
 
         this.peer.on('connection', (conn) => {
-            // El host acepta la conexión entrante del cliente
-            this.conn = conn;
-            this.setupConnection();
+            this.setupConnection(conn);
         });
 
         this.peer.on('error', (err) => {
@@ -75,9 +147,10 @@ class NetworkManager {
         }
 
         this.isHost = false;
-        this.role = 'invisible'; // El jugador que se une es el Invisible
+        this.role = 'invisible';
         this.btnJoin.disabled = true;
         this.btnJoin.textContent = "Conectando...";
+        this.btnStartGame.classList.add('hidden');
 
         this.peer = new Peer(null, {
             debug: 1,
@@ -90,66 +163,181 @@ class NetworkManager {
             }
         });
 
-        this.peer.on('open', () => {
-            // Conectamos directamente con el Peer ID del host
+        this.peer.on('open', (id) => {
+            this.myId = id;
             this.conn = this.peer.connect(targetId, {
                 reliable: true
             });
-            this.setupConnection();
+            this.setupConnection(this.conn);
+            
+            this.connectionMenu.classList.add('hidden');
+            this.lobbyStatus.classList.remove('hidden');
         });
 
         this.peer.on('error', (err) => {
             console.error('Error al unirse:', err);
             alert('No se pudo conectar a la sala. Revisa el código.');
-            this.btnJoin.disabled = false;
-            this.btnJoin.textContent = "Unirse (Invisible)";
+            this.cancelLobby();
         });
     }
 
-    setupConnection() {
-        this.conn.on('open', () => {
-            console.log('Conexión P2P establecida exitosamente.');
-            this.lobbyContainer.classList.add('hidden');
+    setupConnection(conn) {
+        if (this.isHost && this.gameStarted) {
+            conn.on('open', () => {
+                conn.send({ type: 'lobby-full', message: 'La partida ya ha comenzado.' });
+                setTimeout(() => conn.close(), 500);
+            });
+            return;
+        }
+
+        conn.on('open', () => {
+            console.log('Conexión P2P establecida con:', conn.peer);
             
             if (this.isHost) {
-                // El host le dice al cliente que su rol es invisible
-                this.conn.send({ type: 'init-role', role: 'invisible' });
+                this.connections[conn.peer] = conn;
                 
-                // El host inicia el juego inmediatamente como seeker
-                if (this.onConnectCallback) {
-                    this.onConnectCallback(this.role);
-                }
+                const color = this.getAvailableColor();
+                this.players[conn.peer] = {
+                    playerId: conn.peer,
+                    color: color,
+                    isHost: false
+                };
+
+                // Enviar datos de rol e inicialización de jugadores
+                conn.send({
+                    type: 'init-role',
+                    role: 'invisible',
+                    playerId: conn.peer,
+                    color: color,
+                    players: this.players
+                });
+
+                // Notificar a todos los demás clientes
+                this.broadcast({
+                    type: 'player-joined',
+                    playerId: conn.peer,
+                    color: color,
+                    players: this.players
+                }, conn.peer);
+
+                this.updateLobbyUI();
             }
         });
 
-        this.conn.on('data', (data) => {
+        conn.on('data', (data) => {
             if (data.type === 'init-role') {
                 this.role = data.role;
-                // El cliente inicia el juego solo cuando recibe la inicialización de rol del host
+                this.myId = data.playerId;
+                this.players = data.players;
+                this.updateLobbyUI();
+                return;
+            }
+
+            if (data.type === 'player-joined') {
+                this.players = data.players;
+                this.updateLobbyUI();
+                return;
+            }
+
+            if (data.type === 'player-left') {
+                this.players = data.players;
+                this.updateLobbyUI();
+                if (!this.gameStarted) return;
+            }
+
+            if (data.type === 'start-game') {
+                this.lobbyContainer.classList.add('hidden');
                 if (this.onConnectCallback) {
                     this.onConnectCallback(this.role);
                 }
                 return;
             }
+
+            if (data.type === 'lobby-full') {
+                alert(data.message);
+                this.cancelLobby();
+                return;
+            }
+
+            // Identificar quién envió el paquete si no viene ya identificado
+            if (!data.playerId) {
+                data.playerId = conn.peer;
+            }
+
+            // Si somos Host, retransmitimos los datos a todos los demás clientes
+            if (this.isHost) {
+                this.broadcast(data, conn.peer);
+            }
+
+            // Pasar el paquete a la lógica de juego local
             if (this.onDataCallback) {
                 this.onDataCallback(data);
             }
         });
 
-        this.conn.on('close', () => {
-            console.log('Conexión cerrada por el otro par.');
-            if (this.onDisconnectCallback) {
-                this.onDisconnectCallback();
+        conn.on('close', () => {
+            console.log('Conexión cerrada por:', conn.peer);
+            
+            if (this.isHost) {
+                const peerId = conn.peer;
+                delete this.connections[peerId];
+                delete this.players[peerId];
+                
+                this.broadcast({
+                    type: 'player-left',
+                    playerId: peerId,
+                    players: this.players
+                });
+                
+                this.updateLobbyUI();
+
+                if (this.onDataCallback) {
+                    this.onDataCallback({
+                        type: 'player-left',
+                        playerId: peerId
+                    });
+                }
             } else {
-                alert('El otro jugador se ha desconectado.');
+                alert('El Buscador (Host) se ha desconectado.');
                 window.location.reload();
             }
         });
     }
 
+    broadcast(data, excludePeerId) {
+        for (const id in this.connections) {
+            if (id !== excludePeerId) {
+                const conn = this.connections[id];
+                if (conn && conn.open) {
+                    conn.send(data);
+                }
+            }
+        }
+    }
+
     send(data) {
-        if (this.conn && this.conn.open) {
-            this.conn.send(data);
+        if (this.isHost) {
+            // El host difunde a todos los clientes
+            this.broadcast(data);
+        } else {
+            // El cliente envía directo al host
+            if (this.conn && this.conn.open) {
+                this.conn.send(data);
+            }
+        }
+    }
+
+    startGame() {
+        if (!this.isHost) return;
+        this.gameStarted = true;
+        
+        // Difundir inicio a todos los clientes
+        this.broadcast({ type: 'start-game' });
+        
+        // Ocultar lobby local e iniciar
+        this.lobbyContainer.classList.add('hidden');
+        if (this.onConnectCallback) {
+            this.onConnectCallback(this.role);
         }
     }
 
@@ -158,6 +346,8 @@ class NetworkManager {
             this.peer.destroy();
         }
         this.conn = null;
+        this.connections = {};
+        this.players = {};
         this.lobbyStatus.classList.add('hidden');
         this.connectionMenu.classList.remove('hidden');
         this.btnJoin.disabled = false;
@@ -178,5 +368,5 @@ class NetworkManager {
     }
 }
 
-// Exportamos globalmente para game.js
+// Inicializar globalmente
 window.networkManager = new NetworkManager();

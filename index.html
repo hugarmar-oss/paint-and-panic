@@ -30,7 +30,7 @@
             </div>
 
             <div id="lobby-status" class="hidden">
-                <p class="status-title">Esperando contrincante...</p>
+                <p class="status-title">Esperando jugadores...</p>
                 <div class="code-display-container">
                     <span class="code-label">Comparte este código:</span>
                     <div class="code-value-box">
@@ -38,7 +38,16 @@
                         <button id="btn-copy-code" title="Copiar código">📋</button>
                     </div>
                 </div>
-                <button id="btn-cancel-lobby" class="btn btn-danger">Cancelar</button>
+                
+                <div id="lobby-players-container">
+                    <p class="lobby-subtitle">Conectados:</p>
+                    <div id="lobby-players-list">
+                        <!-- Se poblará dinámicamente -->
+                    </div>
+                </div>
+
+                <button id="btn-start-game" class="btn btn-primary hidden" disabled>Iniciar Partida (0/4 invisibles)</button>
+                <button id="btn-cancel-lobby" class="btn btn-danger">Cancelar / Salir</button>
             </div>
         </div>
     </div>

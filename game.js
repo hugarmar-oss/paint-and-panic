@@ -387,43 +387,100 @@ class Game {
             this.camera.position.set(0, 2, 40);
         }
 
-        // Crear la representación visual del contrincante en la escena
-        const playerGeo = new THREE.CylinderGeometry(0.8, 0.8, 3.2, 16);
-        let playerMat;
+        this.otherPlayers = {}; // Diccionario de contrincantes: playerId -> { playerId, role, color, mesh, active }
 
-        if (this.role === 'seeker') {
-            // Yo soy el buscador. El otro es el invisible.
-            // Para mí, el otro es invisible por defecto, pero brillará en rojo neón al recibir luz UV
-            playerMat = new THREE.MeshBasicMaterial({ 
-                color: 0xff3333, 
-                transparent: true, 
-                opacity: 0.0,
-                depthWrite: false
-            });
-            this.otherPlayerMesh = new THREE.Mesh(playerGeo, playerMat);
-            this.scene.add(this.otherPlayerMesh);
-        } else {
-            // Yo soy el invisible. El otro es el buscador.
-            // El buscador es visible todo el tiempo en color rojo brillante para poder esquivarlo
-            playerMat = new THREE.MeshStandardMaterial({ 
+        // Spawnear a todos los demás jugadores registrados en la sala de red
+        const players = window.networkManager.players;
+        for (const id in players) {
+            if (id !== window.networkManager.myId) {
+                const p = players[id];
+                const role = p.isHost ? 'seeker' : 'invisible';
+                this.spawnOtherPlayer(id, role, p.color);
+            }
+        }
+    }
+
+    spawnOtherPlayer(playerId, role, color) {
+        if (this.otherPlayers[playerId]) return;
+
+        const playerGeo = new THREE.CylinderGeometry(0.8, 0.8, 3.2, 16);
+        let mesh;
+
+        if (role === 'seeker') {
+            // El buscador es un grupo con cuerpo rojo y visor amarillo
+            const group = new THREE.Group();
+            
+            const playerMat = new THREE.MeshStandardMaterial({ 
                 color: 0xff3333, 
                 roughness: 0.2, 
                 metalness: 0.8,
                 emissive: 0xaa0000
             });
-            this.otherPlayerMesh = new THREE.Group();
-
             const bodyMesh = new THREE.Mesh(playerGeo, playerMat);
-            this.otherPlayerMesh.add(bodyMesh);
+            group.add(bodyMesh);
 
-            // Pequeño visor/indicador en la frente del buscador que apunta hacia el frente (Eje Z negativo)
             const visorGeo = new THREE.BoxGeometry(0.6, 0.4, 0.8);
-            const visorMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 }); // Amarillo/Naranja brillante
+            const visorMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
             const visorMesh = new THREE.Mesh(visorGeo, visorMat);
-            visorMesh.position.set(0, 1.0, -0.6); // Situado en la frente apuntando hacia adelante
-            this.otherPlayerMesh.add(visorMesh);
+            visorMesh.position.set(0, 1.0, -0.6);
+            group.add(visorMesh);
 
-            this.scene.add(this.otherPlayerMesh);
+            mesh = group;
+        } else {
+            // El invisible brilla en su respectivo color neón.
+            // Para otros invisibles (compañeros), se ve translúcido (35% opaco).
+            // Para el buscador, se ve 100% transparente por defecto.
+            const opacityVal = (this.role === 'invisible') ? 0.35 : 0.0;
+            const playerMat = new THREE.MeshBasicMaterial({
+                color: new THREE.Color(color),
+                transparent: true,
+                opacity: opacityVal,
+                depthWrite: (this.role === 'invisible')
+            });
+            mesh = new THREE.Mesh(playerGeo, playerMat);
+        }
+
+        this.scene.add(mesh);
+        this.otherPlayers[playerId] = {
+            playerId: playerId,
+            role: role,
+            color: color,
+            mesh: mesh,
+            active: true
+        };
+
+        // Posición inicial estándar
+        if (role === 'seeker') {
+            mesh.position.set(0, 2, 0);
+        } else {
+            mesh.position.set(0, 2, 40);
+        }
+    }
+
+    eliminatePlayer(playerId) {
+        if (playerId === window.networkManager.myId) {
+            // Nosotros fuimos eliminados
+            this.role = 'spectator';
+            this.playSynthSound('shot');
+            
+            this.seekerPanel.classList.add('hidden');
+            this.invisiblePanel.classList.add('hidden');
+            this.roleValue.textContent = 'ESPECTADOR';
+            this.roleValue.className = 'hud-value';
+            
+            alert('¡Has sido eliminado! Ahora eres espectador (puedes volar por el almacén para observar la partida).');
+            
+            // Ajustar altura de espectador para ver la partida desde arriba
+            this.moveSpeed = 25.0; // Movimiento más rápido para volar
+            this.camera.position.y = 8;
+        } else {
+            // Otro jugador fue eliminado
+            const other = this.otherPlayers[playerId];
+            if (other) {
+                other.active = false;
+                this.scene.remove(other.mesh);
+                this.playSynthSound('shot');
+            }
         }
     }
 
@@ -492,11 +549,36 @@ class Game {
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
 
-        // Detectar si golpeamos al invisible
-        const intersects = raycaster.intersectObject(this.otherPlayerMesh);
-        if (intersects.length > 0 && intersects[0].distance < 35) {
-            // El buscador acierta y gana la partida
-            this.endGame('seeker-wins');
+        // Detectar si golpeamos a algún superviviente invisible
+        let hitPlayerId = null;
+        for (const id in this.otherPlayers) {
+            const other = this.otherPlayers[id];
+            if (other.active && other.role === 'invisible') {
+                const intersects = raycaster.intersectObject(other.mesh);
+                if (intersects.length > 0 && intersects[0].distance < 35) {
+                    hitPlayerId = id;
+                    break;
+                }
+            }
+        }
+
+        if (hitPlayerId) {
+            // Eliminar al jugador golpeado localmente
+            this.eliminatePlayer(hitPlayerId);
+            
+            // Avisar a la red para eliminarlo globalmente
+            window.networkManager.send({
+                type: 'eliminate',
+                playerId: hitPlayerId
+            });
+
+            // Comprobar si quedan supervivientes activos
+            const activeInvisibles = Object.values(this.otherPlayers).filter(
+                other => other.active && other.role === 'invisible'
+            );
+            if (activeInvisibles.length === 0) {
+                this.endGame('seeker-wins');
+            }
         } else {
             // Falló el disparo, dejamos una mancha de pintura paintball en las paredes u obstáculos
             const mapIntersects = raycaster.intersectObjects(this.obstacles.concat(this.scene.children.filter(c => c.type === 'Mesh')));
@@ -596,10 +678,14 @@ class Game {
 
         this.lastFootstepTime = now;
 
-        // Crear una pequeña huella neón en el suelo
+        // Obtener el color asignado a nosotros
+        const p = window.networkManager.players[window.networkManager.myId];
+        const myColor = p ? p.color : '#39ff14';
+
+        // Crear una pequeña huella neón en el suelo con nuestro color
         const stepGeo = new THREE.CircleGeometry(0.2, 8);
         const stepMat = new THREE.MeshBasicMaterial({
-            color: 0x39ff14,
+            color: new THREE.Color(myColor),
             transparent: true,
             opacity: 0.9,
             depthWrite: false
@@ -612,7 +698,8 @@ class Game {
         // Guardamos
         this.footsteps.push({
             mesh: step,
-            created: now
+            created: now,
+            playerId: window.networkManager.myId
         });
 
         this.scene.add(step);
@@ -625,6 +712,7 @@ class Game {
     }
 
     sendPositionUpdate() {
+        if (this.role === 'spectator') return; // Los espectadores no transmiten posición
         window.networkManager.send({
             type: 'move',
             position: this.camera.position.toArray(),
@@ -635,45 +723,77 @@ class Game {
     handleNetworkData(data) {
         if (!this.gameActive) return;
 
+        const pId = data.playerId;
+
         if (data.type === 'move') {
-            console.log("Recibido movimiento contrincante:", data.position);
-            // Sincronizar posición y rotación del contrincante
-            this.otherPlayerMesh.position.fromArray(data.position);
-            // Sincronizamos la rotación Y (el giro hacia los lados) para el modelo
-            if (data.yRotation !== undefined) {
-                this.otherPlayerMesh.rotation.y = data.yRotation; 
+            if (pId) {
+                // Si el jugador no está registrado localmente pero está en la red, lo creamos
+                if (!this.otherPlayers[pId]) {
+                    const p = window.networkManager.players[pId];
+                    if (p) {
+                        const role = p.isHost ? 'seeker' : 'invisible';
+                        this.spawnOtherPlayer(pId, role, p.color);
+                    }
+                }
+                const other = this.otherPlayers[pId];
+                if (other && other.active) {
+                    other.mesh.position.fromArray(data.position);
+                    if (data.yRotation !== undefined) {
+                        other.mesh.rotation.y = data.yRotation; 
+                    }
+                }
             }
         } else if (data.type === 'flashlight') {
-            // Si el buscador enciende/apaga su linterna, el cliente invisible lo sincroniza en su pantalla
-            this.otherPlayerFlashlightActive = data.active;
+            if (pId) {
+                const other = this.otherPlayers[pId];
+                if (other && other.role === 'seeker') {
+                    other.flashlightActive = data.active;
+                    this.updateOtherSeekerFlashlight(other);
+                }
+            }
+        } else if (data.type === 'player-left') {
+            if (pId) {
+                this.removePlayer(pId);
+            }
         } else if (data.type === 'footstep') {
-            // El buscador recibe las huellas del invisible
-            const stepGeo = new THREE.CircleGeometry(0.2, 8);
-            // Empiezan 100% invisibles para el buscador
-            const stepMat = new THREE.MeshBasicMaterial({
-                color: 0x39ff14,
-                transparent: true,
-                opacity: 0.0, 
-                depthWrite: false
-            });
-            const step = new THREE.Mesh(stepGeo, stepMat);
-            step.position.fromArray(data.position);
-            step.position.y = 0.02;
-            step.rotation.x = -Math.PI / 2;
+            if (pId) {
+                const p = window.networkManager.players[pId];
+                const color = p ? p.color : '#39ff14';
 
-            this.footsteps.push({
-                mesh: step,
-                created: performance.now()
-            });
-            this.scene.add(step);
+                const stepGeo = new THREE.CircleGeometry(0.2, 8);
+                // Si somos el buscador, las huellas empiezan totalmente invisibles (opacity: 0)
+                // Si somos invisible, se ven translúcidas para todos
+                const opacityVal = (this.role === 'seeker') ? 0.0 : 0.5;
+
+                const stepMat = new THREE.MeshBasicMaterial({
+                    color: new THREE.Color(color),
+                    transparent: true,
+                    opacity: opacityVal, 
+                    depthWrite: false
+                });
+                const step = new THREE.Mesh(stepGeo, stepMat);
+                step.position.fromArray(data.position);
+                step.position.y = 0.02;
+                step.rotation.x = -Math.PI / 2;
+
+                this.footsteps.push({
+                    mesh: step,
+                    created: performance.now(),
+                    playerId: pId
+                });
+                this.scene.add(step);
+            }
         } else if (data.type === 'whistle') {
             this.playSynthSound('whistle');
             
-            // Si soy el buscador, dibujo el anillo del silbido delatando su posición aproximada
-            if (this.role === 'seeker') {
+            if (pId) {
+                const p = window.networkManager.players[pId];
+                const color = p ? p.color : '#39ff14';
+
+                // El silbido genera un anillo de luz en el suelo del color del emisor
                 const waveGeo = new THREE.RingGeometry(0.1, 0.8, 32);
                 const waveMat = new THREE.MeshBasicMaterial({
-                    color: 0x39ff14,
+                    color: new THREE.Color(color),
                     transparent: true,
                     opacity: 0.8,
                     side: THREE.DoubleSide
@@ -699,6 +819,8 @@ class Game {
             }
         } else if (data.type === 'shot') {
             this.playSynthSound('shot');
+        } else if (data.type === 'eliminate') {
+            this.eliminatePlayer(data.playerId);
         } else if (data.type === 'gameover') {
             this.endGame(data.reason);
         }
@@ -747,31 +869,93 @@ class Game {
 
         // Comprobamos si el invisible está dentro de la linterna del buscador
         if (!this.flashlightActive || this.battery <= 0) {
-            this.otherPlayerMesh.material.opacity = 0;
+            for (const id in this.otherPlayers) {
+                const other = this.otherPlayers[id];
+                if (other.active && other.role === 'invisible') {
+                    other.mesh.material.opacity = 0;
+                }
+            }
             return;
         }
 
-        // Dirección de la linterna y posición del enemigo
         const seekerPos = this.camera.position;
-        const enemyPos = this.otherPlayerMesh.position;
-        const dist = seekerPos.distanceTo(enemyPos);
-
-        if (dist > 35) { // Rango máximo de la linterna UV
-            this.otherPlayerMesh.material.opacity = 0;
-            return;
-        }
-
         const seekerDir = this.camera.getWorldDirection(new THREE.Vector3());
-        const toEnemy = new THREE.Vector3().subVectors(enemyPos, seekerPos).normalize();
-        
-        // Ángulo entre la linterna y el enemigo
-        const angle = seekerDir.angleTo(toEnemy);
 
-        if (angle < Math.PI / 6) { // Dentro del cono
-            // El camaleón brilla
-            this.otherPlayerMesh.material.opacity = 0.9;
+        for (const id in this.otherPlayers) {
+            const other = this.otherPlayers[id];
+            if (other.active && other.role === 'invisible') {
+                const enemyPos = other.mesh.position;
+                const dist = seekerPos.distanceTo(enemyPos);
+
+                if (dist > 35) { // Rango máximo de la linterna UV
+                    other.mesh.material.opacity = 0;
+                    continue;
+                }
+
+                const toEnemy = new THREE.Vector3().subVectors(enemyPos, seekerPos).normalize();
+                
+                // Ángulo entre la linterna y el enemigo
+                const angle = seekerDir.angleTo(toEnemy);
+
+                if (angle < Math.PI / 6) { // Dentro del cono
+                    // El camaleón brilla
+                    other.mesh.material.opacity = 0.9;
+                } else {
+                    other.mesh.material.opacity = 0.0;
+                }
+            }
+        }
+    }
+
+    updateOtherSeekerFlashlight(other) {
+        if (other.flashlightActive) {
+            if (!other.flashlightSpot) {
+                // SpotLight
+                other.flashlightSpot = new THREE.SpotLight(0x9d4edd, 8, 40, Math.PI / 5, 0.5, 1);
+                other.flashlightSpot.position.set(0, 1.0, -0.6); // Posición del visor
+                
+                // SpotLight target
+                const targetObj = new THREE.Object3D();
+                targetObj.position.set(0, 1.0, -10.6); // Apuntar hacia adelante
+                other.mesh.add(targetObj);
+                other.flashlightSpot.target = targetObj;
+                
+                other.mesh.add(other.flashlightSpot);
+                
+                // Cono visual
+                const coneGeo = new THREE.ConeGeometry(5, 25, 16, 1, true);
+                const coneMat = new THREE.MeshBasicMaterial({
+                    color: 0x9d4edd,
+                    transparent: true,
+                    opacity: 0.15,
+                    blending: THREE.AdditiveBlending,
+                    depthWrite: false
+                });
+                other.flashlightConeVisual = new THREE.Mesh(coneGeo, coneMat);
+                other.flashlightConeVisual.rotation.x = -Math.PI / 2;
+                other.flashlightConeVisual.position.set(0, 1.0, -13.1); // Desplazado hacia adelante
+                other.mesh.add(other.flashlightConeVisual);
+            }
         } else {
-            this.otherPlayerMesh.material.opacity = 0.0;
+            if (other.flashlightSpot) {
+                other.mesh.remove(other.flashlightSpot);
+                if (other.flashlightSpot.target) {
+                    other.mesh.remove(other.flashlightSpot.target);
+                }
+                other.flashlightSpot = null;
+            }
+            if (other.flashlightConeVisual) {
+                other.mesh.remove(other.flashlightConeVisual);
+                other.flashlightConeVisual = null;
+            }
+        }
+    }
+
+    removePlayer(playerId) {
+        const other = this.otherPlayers[playerId];
+        if (other) {
+            this.scene.remove(other.mesh);
+            delete this.otherPlayers[playerId];
         }
     }
 
@@ -889,25 +1073,27 @@ class Game {
             const prevPos = camera.position.clone();
             camera.translateX(this.velocity.x);
             camera.translateZ(this.velocity.z);
-            camera.position.y = 2; // Mantener altura fija
+            if (this.role !== 'spectator') {
+                camera.position.y = 2; // Mantener altura fija
 
-            // Colisiones simples con los bordes del mapa
-            camera.position.x = Math.max(-48, Math.min(48, camera.position.x));
-            camera.position.z = Math.max(-48, Math.min(48, camera.position.z));
+                // Colisiones simples con los bordes del mapa
+                camera.position.x = Math.max(-48, Math.min(48, camera.position.x));
+                camera.position.z = Math.max(-48, Math.min(48, camera.position.z));
 
-            // Colisiones con obstáculos (estanterías y cajas) usando límites precomputados
-            const playerRadius = 0.8;
-            if (this.obstacleBoxes) {
-                for (const box of this.obstacleBoxes) {
-                    const minX = box.minX - playerRadius;
-                    const maxX = box.maxX + playerRadius;
-                    const minZ = box.minZ - playerRadius;
-                    const maxZ = box.maxZ + playerRadius;
+                // Colisiones con obstáculos (estanterías y cajas) usando límites precomputados
+                const playerRadius = 0.8;
+                if (this.obstacleBoxes) {
+                    for (const box of this.obstacleBoxes) {
+                        const minX = box.minX - playerRadius;
+                        const maxX = box.maxX + playerRadius;
+                        const minZ = box.minZ - playerRadius;
+                        const maxZ = box.maxZ + playerRadius;
 
-                    if (camera.position.x >= minX && camera.position.x <= maxX &&
-                        camera.position.z >= minZ && camera.position.z <= maxZ) {
-                        camera.position.copy(prevPos); // Revertir movimiento si choca
-                        break;
+                        if (camera.position.x >= minX && camera.position.x <= maxX &&
+                            camera.position.z >= minZ && camera.position.z <= maxZ) {
+                            camera.position.copy(prevPos); // Revertir movimiento si choca
+                            break;
+                        }
                     }
                 }
             }
