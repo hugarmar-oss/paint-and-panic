@@ -13,6 +13,8 @@ class Game {
         this.direction = new THREE.Vector3();
         this.moveSpeed = 15.0;
         this.clock = new THREE.Clock();
+        this.cameraYaw = 0; // Guardar rotación horizontal pura de forma continua
+        this.cameraPitch = 0; // Guardar rotación vertical pura de forma continua
 
         // Estado del juego
         this.gameActive = false;
@@ -212,18 +214,18 @@ class Game {
         });
 
         // Controles de cámara con el movimiento del ratón
-        const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+        this.cameraPitch = 0;
         document.addEventListener('mousemove', (event) => {
             if (!this.controls.enabled) return;
 
             const movementX = event.movementX || 0;
             const movementY = event.movementY || 0;
 
-            euler.setFromQuaternion(this.camera.quaternion);
-            euler.y -= movementX * 0.002;
-            euler.x -= movementY * 0.002;
-            euler.x = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, euler.x));
+            this.cameraYaw -= movementX * 0.002;
+            this.cameraPitch -= movementY * 0.002;
+            this.cameraPitch = Math.max(-Math.PI / 2.2, Math.min(Math.PI / 2.2, this.cameraPitch));
 
+            const euler = new THREE.Euler(this.cameraPitch, this.cameraYaw, 0, 'YXZ');
             this.camera.quaternion.setFromEuler(euler);
 
             // Transmitir rotación a través de la red
@@ -601,15 +603,10 @@ class Game {
     }
 
     sendPositionUpdate() {
-        const direction = new THREE.Vector3();
-        this.camera.getWorldDirection(direction);
-        // Ángulo horizontal exacto y estable usando la dirección del vector
-        const yRot = Math.atan2(-direction.x, -direction.z);
-
         window.networkManager.send({
             type: 'move',
             position: this.camera.position.toArray(),
-            yRotation: yRot
+            yRotation: this.cameraYaw
         });
     }
 
