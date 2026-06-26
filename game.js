@@ -310,6 +310,7 @@ class Game {
 
         // Columnas industriales y estanterías en el almacén (obstáculos)
         this.obstacles = [];
+        this.obstacleBoxes = []; // Cajas de colisión precomputadas
         const boxMat = new THREE.MeshStandardMaterial({ color: 0xc89f65, roughness: 0.9 }); // Cajas de madera
         const shelfMetalMat = new THREE.MeshStandardMaterial({ color: 0x2b2e36, metalness: 0.7 });
 
@@ -318,6 +319,20 @@ class Game {
             mesh.receiveShadow = true;
             this.scene.add(mesh);
             this.obstacles.push(mesh);
+
+            // Calcular límites en espacio mundial usando los parámetros de la geometría
+            if (mesh.geometry && mesh.geometry.parameters) {
+                const width = mesh.geometry.parameters.width || 0;
+                const depth = mesh.geometry.parameters.depth || 0;
+                const hw = width / 2;
+                const hd = depth / 2;
+                this.obstacleBoxes.push({
+                    minX: mesh.position.x - hw,
+                    maxX: mesh.position.x + hw,
+                    minZ: mesh.position.z - hd,
+                    maxZ: mesh.position.z + hd
+                });
+            }
         };
 
         // Generar estanterías llenas de cajas estilizadas sencillas
@@ -844,24 +859,20 @@ class Game {
             camera.position.x = Math.max(-48, Math.min(48, camera.position.x));
             camera.position.z = Math.max(-48, Math.min(48, camera.position.z));
 
-            // Colisiones con obstáculos (estanterías y cajas)
+            // Colisiones con obstáculos (estanterías y cajas) usando límites precomputados
             const playerRadius = 0.8;
-            for (const obstacle of this.obstacles) {
-                if (!obstacle.geometry.boundingBox) {
-                    obstacle.geometry.computeBoundingBox();
-                }
-                const box = obstacle.geometry.boundingBox.clone().applyMatrix4(obstacle.matrixWorld);
-                
-                // Expandir la caja con el radio del jugador
-                box.min.x -= playerRadius;
-                box.max.x += playerRadius;
-                box.min.z -= playerRadius;
-                box.max.z += playerRadius;
+            if (this.obstacleBoxes) {
+                for (const box of this.obstacleBoxes) {
+                    const minX = box.minX - playerRadius;
+                    const maxX = box.maxX + playerRadius;
+                    const minZ = box.minZ - playerRadius;
+                    const maxZ = box.maxZ + playerRadius;
 
-                if (camera.position.x >= box.min.x && camera.position.x <= box.max.x &&
-                    camera.position.z >= box.min.z && camera.position.z <= box.max.z) {
-                    camera.position.copy(prevPos); // Revertir movimiento si choca
-                    break;
+                    if (camera.position.x >= minX && camera.position.x <= maxX &&
+                        camera.position.z >= minZ && camera.position.z <= maxZ) {
+                        camera.position.copy(prevPos); // Revertir movimiento si choca
+                        break;
+                    }
                 }
             }
 
