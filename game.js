@@ -124,7 +124,9 @@ class Game {
     start(role) {
         this.role = role;
         this.gameActive = true;
-        this.roundTime = 90.0; // Restablecer temporizador a 90s
+        // Tiempo dinámico: 60s base + 30s por superviviente (mínimo 1 superviviente)
+        const survivorCount = Object.keys(window.networkManager.players).length - 1;
+        this.roundTime = 60.0 + 30.0 * Math.max(1, survivorCount);
         
         // Ajustar HUD según rol
         this.hudContainer.classList.remove('hidden');

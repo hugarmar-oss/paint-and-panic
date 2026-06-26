@@ -41,7 +41,7 @@ class NetworkManager {
     }
 
     getAvailableColor() {
-        const PRESET_COLORS = ['#39ff14', '#00f0ff', '#ff00ff', '#ffff00']; // Verde, Cian, Magenta, Amarillo
+        const PRESET_COLORS = ['#39ff14', '#00f0ff', '#ff00ff', '#ffff00', '#ff5e00']; // Verde, Cian, Magenta, Amarillo, Naranja
         const usedColors = Object.values(this.players).map(p => p.color);
         for (const color of PRESET_COLORS) {
             if (!usedColors.includes(color)) {
@@ -91,7 +91,7 @@ class NetworkManager {
         // Habilitar/deshabilitar botón de inicio para el host
         if (this.isHost && this.btnStartGame) {
             const invisibleCount = playerIds.length - 1; // Excluir host
-            this.btnStartGame.textContent = `Iniciar Partida (${invisibleCount}/4 invisibles)`;
+            this.btnStartGame.textContent = `Iniciar Partida (${invisibleCount}/5 invisibles)`;
             this.btnStartGame.disabled = invisibleCount === 0;
         }
     }
@@ -185,6 +185,14 @@ class NetworkManager {
         if (this.isHost && this.gameStarted) {
             conn.on('open', () => {
                 conn.send({ type: 'lobby-full', message: 'La partida ya ha comenzado.' });
+                setTimeout(() => conn.close(), 500);
+            });
+            return;
+        }
+
+        if (this.isHost && Object.keys(this.players).length >= 6) { // 1 host + 5 clientes
+            conn.on('open', () => {
+                conn.send({ type: 'lobby-full', message: 'La sala está llena (máximo 5 supervivientes).' });
                 setTimeout(() => conn.close(), 500);
             });
             return;
