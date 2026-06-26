@@ -320,18 +320,21 @@ class Game {
             this.scene.add(mesh);
             this.obstacles.push(mesh);
 
-            // Calcular límites en espacio mundial usando los parámetros de la geometría
-            if (mesh.geometry && mesh.geometry.parameters) {
-                const width = mesh.geometry.parameters.width || 0;
-                const depth = mesh.geometry.parameters.depth || 0;
-                const hw = width / 2;
-                const hd = depth / 2;
-                this.obstacleBoxes.push({
-                    minX: mesh.position.x - hw,
-                    maxX: mesh.position.x + hw,
-                    minZ: mesh.position.z - hd,
-                    maxZ: mesh.position.z + hd
-                });
+            // Calcular límites en espacio mundial usando la boundingBox local y la posición del mesh (muy robusto y sin dependencias de matrixWorld o parameters)
+            const geom = mesh.geometry;
+            if (geom) {
+                if (!geom.boundingBox) {
+                    geom.computeBoundingBox();
+                }
+                const localBox = geom.boundingBox;
+                if (localBox) {
+                    this.obstacleBoxes.push({
+                        minX: localBox.min.x + mesh.position.x,
+                        maxX: localBox.max.x + mesh.position.x,
+                        minZ: localBox.min.z + mesh.position.z,
+                        maxZ: localBox.max.z + mesh.position.z
+                    });
+                }
             }
         };
 
