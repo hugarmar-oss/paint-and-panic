@@ -46,10 +46,13 @@ class Game {
         this.ammoIndicator = document.getElementById('ammo-indicator');
         this.ammoStatus = document.getElementById('ammo-status');
         this.roleValue = document.getElementById('role-value');
+        this.timerValueElement = document.getElementById('timer-value');
         this.gameoverScreen = document.getElementById('gameover-screen');
         this.gameoverTitle = document.getElementById('gameover-title');
         this.gameoverDesc = document.getElementById('gameover-desc');
         this.btnRestart = document.getElementById('btn-restart');
+
+        this.roundTime = 90.0; // 90 segundos de ronda
 
         this.setupAudio();
     }
@@ -121,6 +124,7 @@ class Game {
     start(role) {
         this.role = role;
         this.gameActive = true;
+        this.roundTime = 90.0; // Restablecer temporizador a 90s
         
         // Ajustar HUD según rol
         this.hudContainer.classList.remove('hidden');
@@ -719,6 +723,16 @@ class Game {
                 this.gameoverTitle.className = "defeat-text";
                 this.gameoverDesc.textContent = "El Buscador te ha marcado con paintball.";
             }
+        } else if (reason === 'invisible-wins') {
+            if (this.role === 'invisible') {
+                this.gameoverTitle.textContent = "¡VICTORIA!";
+                this.gameoverTitle.className = "victory-text";
+                this.gameoverDesc.textContent = "Sobreviviste al Buscador. ¡Se acabó el tiempo!";
+            } else {
+                this.gameoverTitle.textContent = "¡DERROTA!";
+                this.gameoverTitle.className = "defeat-text";
+                this.gameoverDesc.textContent = "El tiempo se ha agotado. El Invisible ha escapado.";
+            }
         }
 
         // Avisar a la red si fuimos nosotros quienes desencadenamos el fin
@@ -840,6 +854,25 @@ class Game {
         requestAnimationFrame(() => this.animate());
 
         const delta = this.clock.getDelta();
+
+        // Actualizar temporizador de ronda
+        if (this.gameActive) {
+            this.roundTime = Math.max(0, this.roundTime - delta);
+            
+            // Actualizar HUD
+            if (this.timerValueElement) {
+                const minutes = Math.floor(this.roundTime / 60);
+                const seconds = Math.floor(this.roundTime % 60);
+                const formatTime = (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+                this.timerValueElement.textContent = formatTime;
+            }
+
+            // Fin de la ronda por tiempo
+            if (this.roundTime <= 0) {
+                this.endGame('invisible-wins');
+                return;
+            }
+        }
 
         // Control y movimiento del jugador
         if (this.controls.enabled) {
