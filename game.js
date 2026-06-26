@@ -604,7 +604,7 @@ class Game {
         window.networkManager.send({
             type: 'move',
             position: this.camera.position.toArray(),
-            rotation: this.camera.rotation.toArray()
+            yRotation: this.camera.rotation.y
         });
     }
 
@@ -616,8 +616,8 @@ class Game {
             // Sincronizar posición y rotación del contrincante
             this.otherPlayerMesh.position.fromArray(data.position);
             // Sincronizamos la rotación Y (el giro hacia los lados) para el modelo
-            if (data.rotation) {
-                this.otherPlayerMesh.rotation.y = data.rotation[1]; 
+            if (data.yRotation !== undefined) {
+                this.otherPlayerMesh.rotation.y = data.yRotation; 
             }
         } else if (data.type === 'flashlight') {
             // Si el buscador enciende/apaga su linterna, el cliente invisible lo sincroniza en su pantalla
