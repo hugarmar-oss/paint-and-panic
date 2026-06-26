@@ -328,12 +328,20 @@ class Game {
                 }
                 const localBox = geom.boundingBox;
                 if (localBox) {
-                    this.obstacleBoxes.push({
-                        minX: localBox.min.x + mesh.position.x,
-                        maxX: localBox.max.x + mesh.position.x,
-                        minZ: localBox.min.z + mesh.position.z,
-                        maxZ: localBox.max.z + mesh.position.z
-                    });
+                    const minX = localBox.min.x + mesh.position.x;
+                    const maxX = localBox.max.x + mesh.position.x;
+                    const minZ = localBox.min.z + mesh.position.z;
+                    const maxZ = localBox.max.z + mesh.position.z;
+                    
+                    this.obstacleBoxes.push({ minX, maxX, minZ, maxZ });
+
+                    // Dibujar jaulas de depuración 3D color verde neón alrededor de las cajas físicas
+                    const box3 = new THREE.Box3(
+                        new THREE.Vector3(minX, 0.05, minZ),
+                        new THREE.Vector3(maxX, 4.0, maxZ)
+                    );
+                    const helper = new THREE.Box3Helper(box3, 0x39ff14);
+                    this.scene.add(helper);
                 }
             }
         };
@@ -888,6 +896,25 @@ class Game {
                     this.spawnFootstep();
                 }
             }
+        }
+
+        // Actualizar panel de depuración visual en pantalla
+        const debugPanel = document.getElementById('debug-panel');
+        if (debugPanel && this.obstacleBoxes) {
+            let nearestDist = Infinity;
+            for (const box of this.obstacleBoxes) {
+                const dx = Math.max(box.minX - this.camera.position.x, 0, this.camera.position.x - box.maxX);
+                const dz = Math.max(box.minZ - this.camera.position.z, 0, this.camera.position.z - box.maxZ);
+                const dist = Math.sqrt(dx * dx + dz * dz);
+                if (dist < nearestDist) nearestDist = dist;
+            }
+            debugPanel.innerHTML = `
+                <b>[DEPURACIÓN LIVE]</b><br>
+                ROL: ${this.role ? this.role.toUpperCase() : 'Ninguno'}<br>
+                POS: X=${this.camera.position.x.toFixed(2)} Z=${this.camera.position.z.toFixed(2)}<br>
+                COLISIONES TOTALES: ${this.obstacleBoxes.length}<br>
+                DISTANCIA AL MÁS CERCANO: ${nearestDist.toFixed(2)}
+            `;
         }
 
         // Actualizaciones de mecánicas
