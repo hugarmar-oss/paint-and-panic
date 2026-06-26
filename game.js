@@ -844,6 +844,27 @@ class Game {
             camera.position.x = Math.max(-48, Math.min(48, camera.position.x));
             camera.position.z = Math.max(-48, Math.min(48, camera.position.z));
 
+            // Colisiones con obstáculos (estanterías y cajas)
+            const playerRadius = 0.8;
+            for (const obstacle of this.obstacles) {
+                if (!obstacle.geometry.boundingBox) {
+                    obstacle.geometry.computeBoundingBox();
+                }
+                const box = obstacle.geometry.boundingBox.clone().applyMatrix4(obstacle.matrixWorld);
+                
+                // Expandir la caja con el radio del jugador
+                box.min.x -= playerRadius;
+                box.max.x += playerRadius;
+                box.min.z -= playerRadius;
+                box.max.z += playerRadius;
+
+                if (camera.position.x >= box.min.x && camera.position.x <= box.max.x &&
+                    camera.position.z >= box.min.z && camera.position.z <= box.max.z) {
+                    camera.position.copy(prevPos); // Revertir movimiento si choca
+                    break;
+                }
+            }
+
             // Si nos hemos movido, registrar y enviar actualización por red
             if (prevPos.distanceTo(camera.position) > 0.005) {
                 this.sendPositionUpdate();
