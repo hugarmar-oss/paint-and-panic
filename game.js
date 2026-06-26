@@ -232,6 +232,7 @@ class Game {
         // Teclado
         window.addEventListener('keydown', (e) => {
             if (!this.controls.enabled) return;
+            if (e.repeat) return; // Evita el bug de mantener pulsada la tecla (linterna infinita)
             switch (e.code) {
                 case 'KeyW': this.keys.w = true; break;
                 case 'KeyA': this.keys.a = true; break;
