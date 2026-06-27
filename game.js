@@ -442,6 +442,7 @@ class Game {
             mesh = new THREE.Mesh(playerGeo, playerMat);
         }
 
+        mesh.userData = { playerId: playerId };
         this.scene.add(mesh);
         this.otherPlayers[playerId] = {
             playerId: playerId,
@@ -551,16 +552,32 @@ class Game {
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
 
-        // Detectar si golpeamos a algún superviviente invisible
-        let hitPlayerId = null;
+        // Reunir todos los posibles objetivos (jugadores invisibles activos + mapa/obstáculos)
+        const targetObjects = [];
         for (const id in this.otherPlayers) {
             const other = this.otherPlayers[id];
             if (other.active && other.role === 'invisible') {
-                const intersects = raycaster.intersectObject(other.mesh);
-                if (intersects.length > 0 && intersects[0].distance < 35) {
-                    hitPlayerId = id;
-                    break;
-                }
+                targetObjects.push(other.mesh);
+            }
+        }
+
+        // Combinar con los obstáculos y mallas del mapa (suelo, paredes, cajas)
+        const mapMeshes = this.obstacles.concat(this.scene.children.filter(c => c.type === 'Mesh'));
+        const allTargets = targetObjects.concat(mapMeshes);
+
+        // Calcular intersecciones ordenadas por distancia
+        const intersects = raycaster.intersectObjects(allTargets);
+
+        let hitPlayerId = null;
+        let closestIntersection = null;
+
+        if (intersects.length > 0) {
+            closestIntersection = intersects[0];
+            const hitObject = closestIntersection.object;
+            
+            // Si el objeto impactado tiene un ID de jugador en userData, es un superviviente
+            if (hitObject.userData && hitObject.userData.playerId) {
+                hitPlayerId = hitObject.userData.playerId;
             }
         }
 
@@ -581,12 +598,9 @@ class Game {
             if (activeInvisibles.length === 0) {
                 this.endGame('seeker-wins');
             }
-        } else {
-            // Falló el disparo, dejamos una mancha de pintura paintball en las paredes u obstáculos
-            const mapIntersects = raycaster.intersectObjects(this.obstacles.concat(this.scene.children.filter(c => c.type === 'Mesh')));
-            if (mapIntersects.length > 0) {
-                this.spawnPaintSplatter(mapIntersects[0]);
-            }
+        } else if (closestIntersection) {
+            // Golpeó un obstáculo o pared, dejamos una mancha de pintura paintball en el punto de impacto exacto
+            this.spawnPaintSplatter(closestIntersection);
         }
 
         // Avisar a la red del disparo
