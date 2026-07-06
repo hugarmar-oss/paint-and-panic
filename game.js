@@ -124,9 +124,9 @@ class Game {
     start(role) {
         this.role = role;
         this.gameActive = true;
-        // Tiempo dinámico: 60s base + 30s por superviviente (mínimo 1 superviviente)
         const survivorCount = Object.keys(window.networkManager.players).length - 1;
-        this.roundTime = 60.0 + 30.0 * Math.max(1, survivorCount);
+        this.roundTime = window.networkManager.roundTime
+            ?? (60.0 + 30.0 * Math.max(1, survivorCount));
         
         // Ajustar HUD según rol
         this.hudContainer.classList.remove('hidden');
@@ -396,39 +396,44 @@ class Game {
         for (const id in players) {
             if (id !== window.networkManager.myId) {
                 const p = players[id];
-                const role = p.isHost ? 'seeker' : 'invisible';
+                const role = p.role || (p.isHost ? 'seeker' : 'invisible');
                 this.spawnOtherPlayer(id, role, p.color);
             }
         }
     }
 
+    createSeekerMesh(playerId) {
+        const playerGeo = new THREE.CylinderGeometry(0.8, 0.8, 3.2, 16);
+        const group = new THREE.Group();
+
+        const playerMat = new THREE.MeshStandardMaterial({
+            color: 0xff3333,
+            roughness: 0.2,
+            metalness: 0.8,
+            emissive: 0xaa0000
+        });
+        const bodyMesh = new THREE.Mesh(playerGeo, playerMat);
+        group.add(bodyMesh);
+
+        const visorGeo = new THREE.BoxGeometry(0.6, 0.4, 0.8);
+        const visorMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
+        const visorMesh = new THREE.Mesh(visorGeo, visorMat);
+        visorMesh.position.set(0, 1.0, -0.6);
+        group.add(visorMesh);
+
+        group.userData = { playerId: playerId };
+        return group;
+    }
+
     spawnOtherPlayer(playerId, role, color) {
         if (this.otherPlayers[playerId]) return;
 
-        const playerGeo = new THREE.CylinderGeometry(0.8, 0.8, 3.2, 16);
         let mesh;
 
         if (role === 'seeker') {
-            // El buscador es un grupo con cuerpo rojo y visor amarillo
-            const group = new THREE.Group();
-            
-            const playerMat = new THREE.MeshStandardMaterial({ 
-                color: 0xff3333, 
-                roughness: 0.2, 
-                metalness: 0.8,
-                emissive: 0xaa0000
-            });
-            const bodyMesh = new THREE.Mesh(playerGeo, playerMat);
-            group.add(bodyMesh);
-
-            const visorGeo = new THREE.BoxGeometry(0.6, 0.4, 0.8);
-            const visorMat = new THREE.MeshBasicMaterial({ color: 0xffaa00 });
-            const visorMesh = new THREE.Mesh(visorGeo, visorMat);
-            visorMesh.position.set(0, 1.0, -0.6);
-            group.add(visorMesh);
-
-            mesh = group;
+            mesh = this.createSeekerMesh(playerId);
         } else {
+            const playerGeo = new THREE.CylinderGeometry(0.8, 0.8, 3.2, 16);
             // El invisible brilla en su respectivo color neón.
             // Para otros invisibles (compañeros), se ve translúcido (35% opaco).
             // Para el buscador, se ve 100% transparente por defecto.
@@ -440,9 +445,9 @@ class Game {
                 depthWrite: (this.role === 'invisible')
             });
             mesh = new THREE.Mesh(playerGeo, playerMat);
+            mesh.userData = { playerId: playerId };
         }
 
-        mesh.userData = { playerId: playerId };
         this.scene.add(mesh);
         this.otherPlayers[playerId] = {
             playerId: playerId,
@@ -460,29 +465,60 @@ class Game {
         }
     }
 
-    eliminatePlayer(playerId) {
+    countActiveSurvivors() {
+        let count = this.role === 'invisible' ? 1 : 0;
+        for (const other of Object.values(this.otherPlayers)) {
+            if (other.active && other.role === 'invisible') {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    replaceMeshWithSeeker(other) {
+        const pos = other.mesh.position.clone();
+        const rotY = other.mesh.rotation.y;
+        this.scene.remove(other.mesh);
+
+        const mesh = this.createSeekerMesh(other.playerId);
+        mesh.position.copy(pos);
+        mesh.rotation.y = rotY;
+        this.scene.add(mesh);
+
+        other.mesh = mesh;
+        other.role = 'seeker';
+        other.color = '#ff3333';
+    }
+
+    convertToSeeker(playerId) {
+        const player = window.networkManager.players[playerId];
+        if (player && player.role === 'seeker') return;
+
+        if (player) {
+            player.role = 'seeker';
+        }
+
+        this.playSynthSound('shot');
+
         if (playerId === window.networkManager.myId) {
-            // Nosotros fuimos eliminados
-            this.role = 'spectator';
-            this.playSynthSound('shot');
-            
-            this.seekerPanel.classList.add('hidden');
+            this.role = 'seeker';
+            window.networkManager.role = 'seeker';
+
+            this.roleValue.textContent = 'BUSCADOR';
+            this.roleValue.className = 'hud-value role-seeker';
+            this.seekerPanel.classList.remove('hidden');
             this.invisiblePanel.classList.add('hidden');
-            this.roleValue.textContent = 'ESPECTADOR';
-            this.roleValue.className = 'hud-value';
-            
-            alert('¡Has sido eliminado! Ahora eres espectador (puedes volar por el almacén para observar la partida).');
-            
-            // Ajustar altura de espectador para ver la partida desde arriba
-            this.moveSpeed = 25.0; // Movimiento más rápido para volar
-            this.camera.position.y = 8;
+
+            this.battery = 100.0;
+            this.flashlightLocked = false;
+            this.ammoReady = true;
+            this.ammoIndicator.className = 'ammo-box ready';
+            this.ammoStatus.textContent = 'LISTO';
+            this.removeFlashlight();
         } else {
-            // Otro jugador fue eliminado
             const other = this.otherPlayers[playerId];
-            if (other) {
-                other.active = false;
-                this.scene.remove(other.mesh);
-                this.playSynthSound('shot');
+            if (other && other.role === 'invisible') {
+                this.replaceMeshWithSeeker(other);
             }
         }
     }
@@ -582,20 +618,14 @@ class Game {
         }
 
         if (hitPlayerId) {
-            // Eliminar al jugador golpeado localmente
-            this.eliminatePlayer(hitPlayerId);
-            
-            // Avisar a la red para eliminarlo globalmente
+            this.convertToSeeker(hitPlayerId);
+
             window.networkManager.send({
-                type: 'eliminate',
+                type: 'convert-to-seeker',
                 playerId: hitPlayerId
             });
 
-            // Comprobar si quedan supervivientes activos
-            const activeInvisibles = Object.values(this.otherPlayers).filter(
-                other => other.active && other.role === 'invisible'
-            );
-            if (activeInvisibles.length === 0) {
+            if (this.countActiveSurvivors() === 0) {
                 this.endGame('seeker-wins');
             }
         } else if (closestIntersection) {
@@ -728,7 +758,7 @@ class Game {
     }
 
     sendPositionUpdate() {
-        if (this.role === 'spectator') return; // Los espectadores no transmiten posición
+        if (this.role !== 'seeker' && this.role !== 'invisible') return;
         window.networkManager.send({
             type: 'move',
             position: this.camera.position.toArray(),
@@ -747,7 +777,7 @@ class Game {
                 if (!this.otherPlayers[pId]) {
                     const p = window.networkManager.players[pId];
                     if (p) {
-                        const role = p.isHost ? 'seeker' : 'invisible';
+                        const role = p.role || (p.isHost ? 'seeker' : 'invisible');
                         this.spawnOtherPlayer(pId, role, p.color);
                     }
                 }
@@ -835,14 +865,18 @@ class Game {
             }
         } else if (data.type === 'shot') {
             this.playSynthSound('shot');
-        } else if (data.type === 'eliminate') {
-            this.eliminatePlayer(data.playerId);
+        } else if (data.type === 'convert-to-seeker') {
+            this.convertToSeeker(data.playerId);
+            if (this.countActiveSurvivors() === 0) {
+                this.endGame('seeker-wins');
+            }
         } else if (data.type === 'gameover') {
             this.endGame(data.reason);
         }
     }
 
     endGame(reason) {
+        if (!this.gameActive) return;
         this.gameActive = false;
         if (this.netHeartbeat) clearInterval(this.netHeartbeat);
         this.removeFlashlight();
@@ -855,21 +889,21 @@ class Game {
             if (this.role === 'seeker') {
                 this.gameoverTitle.textContent = "¡VICTORIA!";
                 this.gameoverTitle.className = "victory-text";
-                this.gameoverDesc.textContent = "Encontraste al Invisible a tiempo.";
+                this.gameoverDesc.textContent = "Todos los supervivientes han sido convertidos.";
             } else {
                 this.gameoverTitle.textContent = "¡DERROTA!";
                 this.gameoverTitle.className = "defeat-text";
-                this.gameoverDesc.textContent = "El Buscador te ha marcado con paintball.";
+                this.gameoverDesc.textContent = "Los cazadores han convertido a todos los supervivientes.";
             }
         } else if (reason === 'invisible-wins') {
             if (this.role === 'invisible') {
                 this.gameoverTitle.textContent = "¡VICTORIA!";
                 this.gameoverTitle.className = "victory-text";
-                this.gameoverDesc.textContent = "Sobreviviste al Buscador. ¡Se acabó el tiempo!";
+                this.gameoverDesc.textContent = "Sobreviviste hasta el final. ¡Se acabó el tiempo!";
             } else {
                 this.gameoverTitle.textContent = "¡DERROTA!";
                 this.gameoverTitle.className = "defeat-text";
-                this.gameoverDesc.textContent = "El tiempo se ha agotado. El Invisible ha escapado.";
+                this.gameoverDesc.textContent = "El tiempo se agotó y aún quedan supervivientes.";
             }
         }
 
@@ -1089,27 +1123,23 @@ class Game {
             const prevPos = camera.position.clone();
             camera.translateX(this.velocity.x);
             camera.translateZ(this.velocity.z);
-            if (this.role !== 'spectator') {
-                camera.position.y = 2; // Mantener altura fija
+            camera.position.y = 2;
 
-                // Colisiones simples con los bordes del mapa
-                camera.position.x = Math.max(-48, Math.min(48, camera.position.x));
-                camera.position.z = Math.max(-48, Math.min(48, camera.position.z));
+            camera.position.x = Math.max(-48, Math.min(48, camera.position.x));
+            camera.position.z = Math.max(-48, Math.min(48, camera.position.z));
 
-                // Colisiones con obstáculos (estanterías y cajas) usando límites precomputados
-                const playerRadius = 0.8;
-                if (this.obstacleBoxes) {
-                    for (const box of this.obstacleBoxes) {
-                        const minX = box.minX - playerRadius;
-                        const maxX = box.maxX + playerRadius;
-                        const minZ = box.minZ - playerRadius;
-                        const maxZ = box.maxZ + playerRadius;
+            const playerRadius = 0.8;
+            if (this.obstacleBoxes) {
+                for (const box of this.obstacleBoxes) {
+                    const minX = box.minX - playerRadius;
+                    const maxX = box.maxX + playerRadius;
+                    const minZ = box.minZ - playerRadius;
+                    const maxZ = box.maxZ + playerRadius;
 
-                        if (camera.position.x >= minX && camera.position.x <= maxX &&
-                            camera.position.z >= minZ && camera.position.z <= maxZ) {
-                            camera.position.copy(prevPos); // Revertir movimiento si choca
-                            break;
-                        }
+                    if (camera.position.x >= minX && camera.position.x <= maxX &&
+                        camera.position.z >= minZ && camera.position.z <= maxZ) {
+                        camera.position.copy(prevPos);
+                        break;
                     }
                 }
             }

@@ -1,4 +1,7 @@
 // Administrador de Red P2P en Estrella usando PeerJS para Paint and Panic
+const MAX_SURVIVORS = 10;
+const MAX_PLAYERS = MAX_SURVIVORS + 1; // 1 cazador + 10 supervivientes
+
 class NetworkManager {
     constructor() {
         this.peer = null;
@@ -9,6 +12,7 @@ class NetworkManager {
         this.role = null;
         this.isHost = false;
         this.gameStarted = false;
+        this.roundTime = null;
         
         // Callbacks registrados por el juego
         this.onConnectCallback = null;
@@ -91,7 +95,7 @@ class NetworkManager {
         // Habilitar/deshabilitar botón de inicio para el host
         if (this.isHost && this.btnStartGame) {
             const invisibleCount = playerIds.length - 1; // Excluir host
-            this.btnStartGame.textContent = `Iniciar Partida (${invisibleCount}/5 invisibles)`;
+            this.btnStartGame.textContent = `Iniciar Partida (${invisibleCount}/${MAX_SURVIVORS} invisibles)`;
             this.btnStartGame.disabled = invisibleCount === 0;
         }
     }
@@ -123,7 +127,8 @@ class NetworkManager {
             this.players[id] = {
                 playerId: id,
                 color: '#ff3333', // Rojo Buscador
-                isHost: true
+                isHost: true,
+                role: 'seeker'
             };
             this.updateLobbyUI();
         });
@@ -190,9 +195,9 @@ class NetworkManager {
             return;
         }
 
-        if (this.isHost && Object.keys(this.players).length >= 6) { // 1 host + 5 clientes
+        if (this.isHost && Object.keys(this.players).length >= MAX_PLAYERS) {
             conn.on('open', () => {
-                conn.send({ type: 'lobby-full', message: 'La sala está llena (máximo 5 supervivientes).' });
+                conn.send({ type: 'lobby-full', message: `La sala está llena (máximo ${MAX_SURVIVORS} supervivientes).` });
                 setTimeout(() => conn.close(), 500);
             });
             return;
@@ -208,7 +213,8 @@ class NetworkManager {
                 this.players[conn.peer] = {
                     playerId: conn.peer,
                     color: color,
-                    isHost: false
+                    isHost: false,
+                    role: 'invisible'
                 };
 
                 // Enviar datos de rol e inicialización de jugadores
@@ -255,6 +261,9 @@ class NetworkManager {
 
             if (data.type === 'start-game') {
                 this.lobbyContainer.classList.add('hidden');
+                if (data.roundTime) {
+                    this.roundTime = data.roundTime;
+                }
                 if (this.onConnectCallback) {
                     this.onConnectCallback(this.role);
                 }
@@ -341,9 +350,12 @@ class NetworkManager {
     startGame() {
         if (!this.isHost) return;
         this.gameStarted = true;
-        
+
+        const survivorCount = Object.keys(this.players).length - 1;
+        this.roundTime = 60.0 + 30.0 * Math.max(1, survivorCount);
+
         // Difundir inicio a todos los clientes
-        this.broadcast({ type: 'start-game' });
+        this.broadcast({ type: 'start-game', roundTime: this.roundTime });
         
         // Ocultar lobby local e iniciar
         this.lobbyContainer.classList.add('hidden');
