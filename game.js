@@ -490,6 +490,17 @@ class Game {
         other.color = '#ff3333';
     }
 
+    resolvePlayerIdFromHit(object) {
+        let current = object;
+        while (current) {
+            if (current.userData && current.userData.playerId) {
+                return current.userData.playerId;
+            }
+            current = current.parent;
+        }
+        return null;
+    }
+
     convertToSeeker(playerId) {
         const player = window.networkManager.players[playerId];
         if (player && player.role === 'seeker') return;
@@ -515,12 +526,21 @@ class Game {
             this.ammoIndicator.className = 'ammo-box ready';
             this.ammoStatus.textContent = 'LISTO';
             this.removeFlashlight();
+            this.showConversionNotice('¡Te han cazado! Ahora eres CAZADOR.');
         } else {
             const other = this.otherPlayers[playerId];
             if (other && other.role === 'invisible') {
                 this.replaceMeshWithSeeker(other);
             }
         }
+    }
+
+    showConversionNotice(message) {
+        const notice = document.createElement('div');
+        notice.className = 'conversion-notice';
+        notice.textContent = message;
+        document.body.appendChild(notice);
+        setTimeout(() => notice.remove(), 3500);
     }
 
     toggleFlashlight() {
@@ -588,32 +608,35 @@ class Game {
         const raycaster = new THREE.Raycaster();
         raycaster.setFromCamera(new THREE.Vector2(0, 0), this.camera);
 
-        // Reunir todos los posibles objetivos (jugadores invisibles activos + mapa/obstáculos)
-        const targetObjects = [];
+        const playerRoots = [];
         for (const id in this.otherPlayers) {
             const other = this.otherPlayers[id];
             if (other.active && other.role === 'invisible') {
-                targetObjects.push(other.mesh);
+                playerRoots.push(other.mesh);
             }
         }
 
-        // Combinar con los obstáculos y mallas del mapa (suelo, paredes, cajas)
-        const mapMeshes = this.obstacles.concat(this.scene.children.filter(c => c.type === 'Mesh'));
-        const allTargets = targetObjects.concat(mapMeshes);
+        const mapMeshes = this.obstacles.concat(
+            this.scene.children.filter(c => c.type === 'Mesh' && !c.userData?.playerId)
+        );
 
-        // Calcular intersecciones ordenadas por distancia
-        const intersects = raycaster.intersectObjects(allTargets);
+        const playerHits = raycaster.intersectObjects(playerRoots, true);
+        const mapHits = raycaster.intersectObjects(mapMeshes, false);
 
         let hitPlayerId = null;
         let closestIntersection = null;
 
-        if (intersects.length > 0) {
-            closestIntersection = intersects[0];
-            const hitObject = closestIntersection.object;
-            
-            // Si el objeto impactado tiene un ID de jugador en userData, es un superviviente
-            if (hitObject.userData && hitObject.userData.playerId) {
-                hitPlayerId = hitObject.userData.playerId;
+        if (playerHits.length > 0) {
+            hitPlayerId = this.resolvePlayerIdFromHit(playerHits[0].object);
+            closestIntersection = playerHits[0];
+        } else if (mapHits.length > 0) {
+            closestIntersection = mapHits[0];
+        }
+
+        if (hitPlayerId) {
+            const other = this.otherPlayers[hitPlayerId];
+            if (!other || !other.active || other.role !== 'invisible') {
+                hitPlayerId = null;
             }
         }
 
@@ -866,6 +889,12 @@ class Game {
         } else if (data.type === 'shot') {
             this.playSynthSound('shot');
         } else if (data.type === 'convert-to-seeker') {
+            this.convertToSeeker(data.playerId);
+            if (this.countActiveSurvivors() === 0) {
+                this.endGame('seeker-wins');
+            }
+        } else if (data.type === 'eliminate') {
+            // Compatibilidad con builds antiguas en caché
             this.convertToSeeker(data.playerId);
             if (this.countActiveSurvivors() === 0) {
                 this.endGame('seeker-wins');

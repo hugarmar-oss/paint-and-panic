@@ -1,4 +1,5 @@
 // Administrador de Red P2P en Estrella usando PeerJS para Paint and Panic
+window.GAME_BUILD = '1.0.6';
 const MAX_SURVIVORS = 10;
 const MAX_PLAYERS = MAX_SURVIVORS + 1; // 1 cazador + 10 supervivientes
 
